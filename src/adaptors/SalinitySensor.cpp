@@ -6,7 +6,7 @@ SalinitySensor& sal = SalinitySensor::Get();
 SalinitySensor::SalinitySensor() {}
 
 void SalinitySensor::begin() {
-    bool calibrated = false, tempComp = false, kFactor = false;
+    bool calibrated = false, tempComp = false, kFactor = false;     // changed temp and k to = false to fix errors in if statement
     char parsedData[32];
     delay(500);
 
