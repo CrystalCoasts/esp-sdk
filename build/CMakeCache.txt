@@ -193,8 +193,6 @@ CMAKE_CPACK_COMMAND:INTERNAL=C:/Program Files (x86)/Microsoft Visual Studio/2019
 CMAKE_CTEST_COMMAND:INTERNAL=C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/ctest.exe
 //Result of TRY_COMPILE
 CMAKE_C_ABI_COMPILED:INTERNAL=FALSE
-//Result of TRY_COMPILE
-CMAKE_C_COMPILER_WORKS:INTERNAL=FALSE
 //ADVANCED property for variable: CMAKE_C_FLAGS
 CMAKE_C_FLAGS-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_C_FLAGS_DEBUG
