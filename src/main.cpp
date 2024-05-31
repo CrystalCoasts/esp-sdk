@@ -1,10 +1,12 @@
 #include <Arduino.h>
+#include <Wire.h>
 
 //External Sensors
 #include "TempSensor.h"
 #include "TurbiditySensor.h"
 #include "SalinitySensor.h"
 
+//Internal ESP peripherals
 #include <esp_sleep.h>
 #include "driver/gpio.h"
 #include "driver/i2c.h"
@@ -17,6 +19,9 @@
 #include "esp_event.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "SPIFFS.h"
+#include "driver\adc.h"
+
 
 #define SSID = "seawall"
 #define PASSWD = "12345678"
@@ -25,12 +30,15 @@
 #define STATUS_LED_PIN GPIO_NUM_2 // Commonly the onboard LED pin on ESP32
 #define BUTTON_PIN GPIO_NUM_0   
 
+#define SDA_PIN 21
+#define SCL_PIN 22
+
 //forward declartions
 
 void gpio_init();
+void spiffs_init();
 
 extern "C"  {
-    //Internal ESP peripherals
     void app_main();
 }
 
@@ -41,29 +49,41 @@ extern "C" void app_main() {
         nvs_flash_erase();
         nvs_flash_init();
     }
-
-
+    
     //Variables
     float temperature;
-    //float humidity;
+    float humidity;
     float turbidity;
+    float salinity;
 
     //Initializations
     gpio_init();
+    spiffs_init();
+    Wire.begin(SDA_PIN, SCL_PIN);
+    Serial.begin(115200);
 
     temp.begin();
     tbdty.begin();
+    tbdty.calibrate();
+    sal.begin();
+    sal.EnableDisableSingleReading(SAL, 1);
 
 
     while(1)    {
         
-        temp.readTemperature(FAHRENHEIT, &temperature);
-        temperature = round(temperature * 1000.0) / 1000.0;
+        temp.readTemperature(FAHRENHEIT, &temperature);      
+        sal.readSalinity(&salinity);
+        tbdty.readTurbidity(&turbidity);
+        //temp.readHumidity(&humidity);
 
-        tbdty.begin();
-        turbidity = tbdty.readTurbidity(&turbidity);
+        temperature = round(temperature * 1000.0) / 1000.0;
+        salinity = round(salinity*1000)/1000;
+        //turbidity = round(turbidity * 1000) / 1000;
+        humidity = round(humidity * 1000) / 1000;
+
+        Serial.printf("Temp: %f, Turbidity: %f, Sal: %f\n", temperature, turbidity, salinity);  
         delay(1000);
-        printf("Temperature: %f, Turbidity: %f", temperature, turbidity);
+        
     }
 
 }
@@ -71,6 +91,16 @@ extern "C" void app_main() {
 void gpio_init() {
     gpio_set_direction(STATUS_LED_PIN, GPIO_MODE_OUTPUT);
     gpio_set_direction(BUTTON_PIN, GPIO_MODE_INPUT);
+}
+
+void spiffs_init() {
+    esp_vfs_spiffs_conf_t conf = {
+        .base_path = "/spiffs",
+        .partition_label = NULL,
+        .max_files = 5,
+        .format_if_mount_failed = true
+    };
+    esp_vfs_spiffs_register(&conf);
 }
 
 

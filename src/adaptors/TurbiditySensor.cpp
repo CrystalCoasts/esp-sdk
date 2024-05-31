@@ -1,5 +1,8 @@
 #include "TurbiditySensor.h"
 #include <Arduino.h>
+//#include "esp32-hal-adc.h"
+
+
 
 TurbiditySensor& tbdty = TurbiditySensor::Get();
 
@@ -7,7 +10,14 @@ TurbiditySensor::TurbiditySensor() {}
 
 void TurbiditySensor::begin() {
     EEPROM.get(EEPROM_VCLEAR_ADDRESS, vClear); // Retrieve the vClear from EEPROM
-    analogReadResolution(12); // Set ADC resolution to 12-bit
+    
+    //esp code
+    adc1_config_width(ADC_BIT_WIDTH);
+    adc1_config_channel_atten(CHANNEL, ATTENUATION);
+
+    //arduino code
+    //analogReadResolution(12); // Set ADC resolution to 12-bit
+    //pinMode(T_ANALOG_PIN, INPUT);
 }
 
 TurbiditySensor& TurbiditySensor::Get() {
@@ -18,7 +28,8 @@ TurbiditySensor& TurbiditySensor::Get() {
 float TurbiditySensor::calibrate() {
     cumulativeRead = 0;
     for (int i = 0; i < READ_SAMPLES; ++i) {
-        cumulativeRead += analogRead(T_ANALOG_PIN);
+        //cumulativeRead += analogRead(Pin...);
+        cumulativeRead += adc1_get_raw(CHANNEL);
         delay(100); // Delay for stability
     }
     float sensorVoltage = static_cast<float>(cumulativeRead) / READ_SAMPLES * (VREF / ADC_DIGITAL);
@@ -34,7 +45,8 @@ bool TurbiditySensor::readTurbidity(float* turbidity) {
         return false; // Invalid pointer
     }
 
-    int sensorValue = analogRead(T_ANALOG_PIN);
+    //int sensorValue = analogRead(Pin...);
+    int sensorValue = adc1_get_raw(CHANNEL);
     float Vout = sensorValue * (VREF / ADC_DIGITAL); // Convert ADC value to voltage
     float Vin = Vout * DIVIDER_RATIO; // Adjust for voltage divider
 

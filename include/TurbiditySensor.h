@@ -3,6 +3,12 @@
 
 #include <EEPROM.h>
 #include "config.h"
+#include "driver/adc.h"
+
+//esp 32 config
+#define ADC_BIT_WIDTH ADC_WIDTH_12Bit
+#define CHANNEL adc1_channel_t::ADC1_CHANNEL_4
+#define ATTENUATION ADC_ATTEN_DB_12
 
 class TurbiditySensor {
 public:
