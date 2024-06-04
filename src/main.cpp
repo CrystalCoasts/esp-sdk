@@ -20,13 +20,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "SPIFFS.h"
-#include "driver\adc.h"
+#include "driver/adc.h"
 #include "cJSON.h"
 
 //Definitions and Constants
 #define WIFI_SSID "seawall"
 #define WIFI_PASS "12345678"
-#define WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzdREDYLRb1ew8CjwGY_WnrIU0UWW0Sn3Wr4XdT8Jv0VjXuQxJV7GVCKZeYtEb2zrKb/exec"
+#define WEB_APP_URL "https://script.google.com/macros/s/AKfycbzdREDYLRb1ew8CjwGY_WnrIU0UWW0Sn3Wr4XdT8Jv0VjXuQxJV7GVCKZeYtEb2zrKb/exec"
 #define STATUS_LED_PIN GPIO_NUM_2 // Commonly the onboard LED pin on ESP32
 #define BUTTON_PIN GPIO_NUM_0   
 #define SDA_PIN 21
