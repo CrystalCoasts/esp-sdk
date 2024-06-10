@@ -22,6 +22,9 @@
 #include "SPIFFS.h"
 #include "driver\adc.h"
 #include "cJSON.h"
+#include "esp_pm.h"
+#include "esp_err.h"
+#include "esp_private/esp_clk.h"
 
 //Definitions and Constants
 #define WIFI_SSID "seawall"
@@ -31,6 +34,9 @@
 #define BUTTON_PIN GPIO_NUM_0   
 #define SDA_PIN 21
 #define SCL_PIN 22
+#define CLK_FRQ 
+
+
 
 //Sensor Data Struct
 struct SensorData {
@@ -79,12 +85,18 @@ extern "C" void app_main() {
         nvs_flash_erase();
         nvs_flash_init();
     }
-    
-    //Variables
-    // float temperature;
-    // float humidity;
-    // float turbidity;
-    // float salinity;
+
+    //power management (80 MHz clock frequency - less power usage)
+    esp_pm_config_esp32_t pm_config = {
+            .max_freq_mhz = 80,
+            .min_freq_mhz = 80,
+    };
+    ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
+    // small delay might be necessary for the frequency setting to take effect — the idle task should have a chance to run
+    vTaskDelay(pdMS_TO_TICKS(10));
+    // now the frequency should be 80 MHz
+    assert(esp_clk_cpu_freq() == 80 * 1000000);
+
 
     //Initializations
     wifi_init();
@@ -104,14 +116,14 @@ extern "C" void app_main() {
         
         //Sensor Data
         SensorData data = {};
-        temp.readTemperature(FAHRENHEIT, &data.temperature);      
-        sal.readSalinity(&data.salinity);
-        tbdty.readTurbidity(&data.turbidity);
-        //temp.readHumidity(&humidity);
+        data.temperatureValid = temp.readTemperature(FAHRENHEIT, &data.temperature);      
+        data.salinityValid = sal.readSalinity(&data.salinity);
+        data.turbidityValid = tbdty.readTurbidity(&data.turbidity);
+        data.humidityValid = temp.readHumidity(&data.humidity);
 
         data.temperature = round(data.temperature * 1000.0) / 1000.0;
         data.salinity = round(data.salinity*1000)/1000;
-        //turbidity = round(turbidity * 1000) / 1000;
+        data.turbidity = round(data.turbidity * 1000) / 1000;
         data.humidity = round(data.humidity * 1000) / 1000;
 
         // Default values for other sensors
@@ -154,6 +166,8 @@ extern "C" void app_main() {
         }
 
         vTaskDelay(pdMS_TO_TICKS(5000)); // 5 seconds delay for next sensor read
+
+
     }
 }
 
