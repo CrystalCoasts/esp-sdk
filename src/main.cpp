@@ -22,9 +22,14 @@
 #include "SPIFFS.h"
 #include "driver\adc.h"
 #include "cJSON.h"
+
+//New libraries for clock speed change - C:\Users\natha\.platformio\packages\framework-espidf\components\esp_pm\include
 #include "esp_pm.h"
 #include "esp_err.h"
 #include "esp_private/esp_clk.h"
+
+//RTC library - C:\Users\natha\.platformio\packages\framework-espidf\components\lwip\include\apps
+#include "esp_sntp.h";
 
 //Definitions and Constants
 #define WIFI_SSID "seawall"
@@ -34,7 +39,7 @@
 #define BUTTON_PIN GPIO_NUM_0   
 #define SDA_PIN 21
 #define SCL_PIN 22
-#define CLK_FRQ 
+
 
 
 
@@ -97,6 +102,8 @@ extern "C" void app_main() {
     // now the frequency should be 80 MHz
     assert(esp_clk_cpu_freq() == 80 * 1000000);
 
+    
+
 
     //Initializations
     wifi_init();
@@ -111,9 +118,12 @@ extern "C" void app_main() {
     sal.begin();
     sal.EnableDisableSingleReading(SAL, 1);
 
+    // esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
+    // esp_sntp_setservername(0, "pool.ntp.org");
+    // esp_sntp_init();
+
 
     while(1)    {
-        
         //Sensor Data
         SensorData data = {};
         data.temperatureValid = temp.readTemperature(FAHRENHEIT, &data.temperature);      
