@@ -39,7 +39,7 @@
 #define BUTTON_PIN GPIO_NUM_0   
 #define SDA_PIN 21
 #define SCL_PIN 22
-
+#define SLEEP_TIME_US 60000000 // 1 minute - multiply by any number for amount of minutes
 
 
 
@@ -91,18 +91,16 @@ extern "C" void app_main() {
         nvs_flash_init();
     }
 
-    //power management (80 MHz clock frequency - less power usage)
-    esp_pm_config_esp32_t pm_config = {
-            .max_freq_mhz = 80,
-            .min_freq_mhz = 80,
-    };
-    ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
-    // small delay might be necessary for the frequency setting to take effect — the idle task should have a chance to run
-    vTaskDelay(pdMS_TO_TICKS(10));
-    // now the frequency should be 80 MHz
-    assert(esp_clk_cpu_freq() == 80 * 1000000);
-
-    
+    // //power management (80 MHz clock frequency - less power usage)
+    // esp_pm_config_esp32_t pm_config = {
+    //         .max_freq_mhz = 160,
+    //         .min_freq_mhz = 160,
+    // };
+    // ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
+    // // small delay might be necessary for the frequency setting to take effect — the idle task should have a chance to run
+    // vTaskDelay(pdMS_TO_TICKS(10));
+    // // now the frequency should be 80 MHz
+    // assert(esp_clk_cpu_freq() == 160 * 1000000);
 
 
     //Initializations
@@ -177,7 +175,10 @@ extern "C" void app_main() {
 
         vTaskDelay(pdMS_TO_TICKS(5000)); // 5 seconds delay for next sensor read
 
-
+        //Sleep Mode settings
+        esp_sleep_config_gpio_isolate();
+        esp_sleep_enable_timer_wakeup(SLEEP_TIME_US);
+        esp_light_sleep_start();
     }
 }
 
