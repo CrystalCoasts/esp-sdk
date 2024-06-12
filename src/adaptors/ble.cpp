@@ -63,11 +63,11 @@ void BLE::addCharacteristics(BLEService& service, esp_gatt_if_t gatts_if) {
 // Create Services
 void BLE::createServices(esp_gatt_if_t gatts_if) {
     // Create sensor service
-    esp_ble_gatts_create_service(gatts_if, &sensor_service.service_id, 6);
+    esp_ble_gatts_create_service(gatts_if, &sensor_service.service_id, SENSOR_SERVICE_HANDLERS);
     addCharacteristics(sensor_service, gatts_if);
 
     // Create system service
-    esp_ble_gatts_create_service(gatts_if, &system_service.service_id, 6);
+    esp_ble_gatts_create_service(gatts_if, &system_service.service_id, SYSTEM_SERVICE_HANDLERS);
     addCharacteristics(system_service, gatts_if);
 }
 

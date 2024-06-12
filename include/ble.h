@@ -37,6 +37,10 @@ private:
     static constexpr uint16_t SYSTEM_REFRESH_UUID = 0xB2;
     static constexpr uint16_t SYSTEM_RESET_UUID = 0xB3;
 
+
+    static constexpr uint16_t SENSOR_SERVICE_HANDLERS = 6;
+    static constexpr uint16_t SYSTEM_SERVICE_HANDLERS = 6;
+
     struct BLECharacteristic {
         esp_bt_uuid_t uuid;
         esp_gatt_char_prop_t properties;
