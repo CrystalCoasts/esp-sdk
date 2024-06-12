@@ -41,7 +41,7 @@
 #define BUTTON_PIN GPIO_NUM_0   
 #define SDA_PIN 21
 #define SCL_PIN 22
-#define SLEEP_TIME_US 60000000 // 1 minute - multiply by any number for amount of minutes
+#define SLEEP_TIME_US 10000000 // 1 minute = 60000000 - multiply by any number for amount of minutes
 
 //esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
 
@@ -96,7 +96,7 @@ void validateSensorReadings(SensorData* data);
 void printDataOnCLI(const SensorData* data);
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 void wifi_init();
-
+void editTime(struct tm *t, struct tm *rv, struct tm *rv2, unsigned long e_usec);
 // Status functions
 void blinkLED(int delayTime);
 void setLEDSolid(bool on);
@@ -116,73 +116,7 @@ void timeavailable(struct timeval *t)
   printLocalTime();
 }
 
-void editTime(struct tm *t, struct tm *rv, struct tm *rv2, unsigned long e_usec)    {
 
-    int   sec= (int)(e_usec / pow(10, 6)), 
-            min = sec * 60, 
-            hour = min * 60;
-    int day = hour * 24;
-    int mon = day /31;
-
-    rv->tm_mon =0;
-    rv->tm_mday =0;
-    rv->tm_hour =0;
-    rv->tm_min =0;
-    rv->tm_sec =0;
-
-    if(day >31) {
-        rv->tm_mon += mon;
-        rv->tm_mday += day%31;
-        rv->tm_hour += hour%24;
-        rv->tm_min +=min %60;
-        rv->tm_sec += sec%60;
-    }else if(hour > 24)   {
-        rv->tm_mday += day;
-        rv->tm_hour += hour%24;
-        rv->tm_min +=min %60;
-        rv->tm_sec += sec%60;
-    }else if (min > 60)  {
-        rv->tm_hour += hour;
-        rv->tm_min +=min %60;
-        rv->tm_sec += sec%60;
-    }else if (sec > 60) {
-        rv->tm_min +=min;
-        rv->tm_sec += sec%60;
-    }else{
-        rv->tm_sec += sec;
-    }
-
-    if(t->tm_mon + rv->tm_mon > 12)    {
-        rv2->tm_year = (t->tm_year + rv->tm_year);
-        rv2->tm_mon = (t->tm_mon + rv->tm_mon) % 12;
-        rv2->tm_mday = (t->tm_mday + rv->tm_mday) %30;
-        rv2->tm_hour = (t->tm_hour + rv->tm_hour) %24;
-        rv2->tm_min = (t->tm_min + rv->tm_min) %60;
-        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
-    } else if((t->tm_mday + rv->tm_mday) >30)   {
-        rv2->tm_mon = (t->tm_mon + rv->tm_mon);
-        rv2->tm_mday = (t->tm_mday + rv->tm_mday) %30;
-        rv2->tm_hour = (t->tm_hour + rv->tm_hour) %24;
-        rv2->tm_min = (t->tm_min + rv->tm_min) %60;
-        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
-    }else if((t->tm_hour + rv->tm_hour) > 24)   {
-        rv2->tm_mday = (t->tm_mday + rv->tm_mday);
-        rv2->tm_hour = (t->tm_hour + rv->tm_hour) %24;
-        rv2->tm_min = (t->tm_min + rv->tm_min) %60;
-        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
-    }else if((t->tm_min + rv->tm_min) > 60)    {
-        rv2->tm_hour = (t->tm_hour + rv->tm_hour);
-        rv2->tm_min = (t->tm_min + rv->tm_min) %60;
-        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
-    }else if((t-> tm_sec + rv->tm_sec)>60)  {
-        rv2->tm_min = (t->tm_min + rv->tm_min);
-        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
-    }else{
-        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec);
-    }
-
-
-}
 
 
 extern "C" void app_main() {
@@ -234,14 +168,9 @@ extern "C" void app_main() {
 	struct timeval end;	/* ending time */
 	unsigned long e_usec;	/* elapsed microseconds */
 
-    
-
-    printLocalTime();
-
-    gettimeofday(&start, 0);
-
-
     while(1)    {
+        printLocalTime();
+        gettimeofday(&start, 0);
         //Sensor Data
         SensorData data = {};
         data.temperatureValid = temp.readTemperature(FAHRENHEIT, &data.temperature);      
@@ -301,14 +230,14 @@ extern "C" void app_main() {
 	    e_usec = ((end.tv_sec * 1000000) + end.tv_usec) - ((start.tv_sec * 1000000) + start.tv_usec);
         Serial.printf("elapsed time: %lu microseconds\n", e_usec);
         
-        editTime(&timeinfo, &temperary, &updatedTime, e_usec);
-        Serial.println(&updatedTime, "%A, %B %d, %Y %H:%M:%S");
+        //editTime(&timeinfo, &temperary, &updatedTime, e_usec);
+        //Serial.println(&updatedTime, "%A, %B %d, %Y %H:%M:%S");
 
       
         //Sleep Mode settings
-        // esp_sleep_config_gpio_isolate();
-        // esp_sleep_enable_timer_wakeup(SLEEP_TIME_US);
-        // esp_light_sleep_start();
+        esp_sleep_config_gpio_isolate();
+        esp_sleep_enable_timer_wakeup(SLEEP_TIME_US);
+        esp_light_sleep_start();
     }
 }
 
@@ -481,4 +410,71 @@ void setLEDSolid(bool on) {
     gpio_set_level(STATUS_LED_PIN, on ? 1 : 0);
 }
 
+void editTime(struct tm *t, struct tm *rv, struct tm *rv2, unsigned long e_usec)    {
 
+    int   sec= (int)(e_usec / pow(10, 6)), 
+            min = sec * 60, 
+            hour = min * 60;
+    int day = hour * 24;
+    int mon = day /31;
+
+    rv->tm_year=0;
+    rv->tm_mon =0;
+    rv->tm_mday =0;
+    rv->tm_hour =0;
+    rv->tm_min =0;
+    rv->tm_sec =0;
+
+    if(day >31) {
+        rv->tm_mon += mon %12;
+        rv->tm_mday += day%31;
+        rv->tm_hour += hour%24;
+        rv->tm_min +=min %60;
+        rv->tm_sec += sec%60;
+    }else if(hour > 24)   {
+        rv->tm_mday += day %30;
+        rv->tm_hour += hour%24;
+        rv->tm_min +=min %60;
+        rv->tm_sec += sec%60;
+    }else if (min > 60)  {
+        rv->tm_hour += hour %24;
+        rv->tm_min +=min %60;
+        rv->tm_sec += sec%60;
+    }else if (sec > 60) {
+        rv->tm_min +=min %60;
+        rv->tm_sec += sec%60;
+    }else{
+        rv->tm_sec += sec %60;
+    }
+
+    //if(t->tm_mon + rv->tm_mon > 12)    {
+        rv2->tm_year = (t->tm_year + rv->tm_year);
+        rv2->tm_mon = (t->tm_mon + rv->tm_mon) % 12;
+        rv2->tm_mday = (t->tm_mday + rv->tm_mday) %30;
+        rv2->tm_hour = (t->tm_hour + rv->tm_hour) %24;
+        rv2->tm_min = (t->tm_min + rv->tm_min) %60;
+        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
+    // } else if((t->tm_mday + rv->tm_mday) >30)   {
+    //     rv2->tm_mon = (t->tm_mon + rv->tm_mon);
+    //     rv2->tm_mday = (t->tm_mday + rv->tm_mday) %30;
+    //     rv2->tm_hour = (t->tm_hour + rv->tm_hour) %24;
+    //     rv2->tm_min = (t->tm_min + rv->tm_min) %60;
+    //     rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
+    // }else if((t->tm_hour + rv->tm_hour) > 24)   {
+    //     rv2->tm_mday = (t->tm_mday + rv->tm_mday);
+    //     rv2->tm_hour = (t->tm_hour + rv->tm_hour) %24;
+    //     rv2->tm_min = (t->tm_min + rv->tm_min) %60;
+    //     rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
+    // }else if((t->tm_min + rv->tm_min) > 60)    {
+    //     rv2->tm_hour = (t->tm_hour + rv->tm_hour);
+    //     rv2->tm_min = (t->tm_min + rv->tm_min) %60;
+    //     rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
+    // }else if((t-> tm_sec + rv->tm_sec)>60)  {
+    //     rv2->tm_min = (t->tm_min + rv->tm_min);
+    //     rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
+    // }else{
+    //     rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) % 60;
+    // }
+
+
+}
