@@ -22,6 +22,8 @@
 #include "SPIFFS.h"
 #include "driver\adc.h"
 #include "cJSON.h"
+#include "sys/time.h"
+#include "esp_sntp.h"
 
 //New libraries for clock speed change - C:\Users\natha\.platformio\packages\framework-espidf\components\esp_pm\include
 #include "esp_pm.h"
@@ -29,7 +31,7 @@
 #include "esp_private/esp_clk.h"
 
 //RTC library - C:\Users\natha\.platformio\packages\framework-espidf\components\lwip\include\apps
-#include "esp_sntp.h";
+#include "esp_sntp.h"
 
 //Definitions and Constants
 #define WIFI_SSID "seawall"
@@ -40,6 +42,24 @@
 #define SDA_PIN 21
 #define SCL_PIN 22
 #define SLEEP_TIME_US 60000000 // 1 minute - multiply by any number for amount of minutes
+
+//esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+
+// NTP clock updating stuff maybe???? idk if it actually works im just trying stuff at this point AJAJJAJAJAJAJ
+const char* ntpServer1 = "pool.ntp.org";
+const char* ntpServer2 = "time.nist.gov";
+const long gmtOffset_sec = -(3600 * 5);
+const int daylightOffset_sec = 3600;
+const char* time_zone = "CET-1CEST,M3.5.0,M10.5.0/3";
+
+struct tm timeinfo;
+
+//Sleep status for night mode, regular mode, and within 5-10 minutes after supposed connection
+enum sleepStatus    {
+    regular = 1,    
+    withinInterval,
+    nightMode
+};
 
 
 
@@ -81,6 +101,89 @@ void wifi_init();
 void blinkLED(int delayTime);
 void setLEDSolid(bool on);
 
+void printLocalTime()   {
+    if(!getLocalTime(&timeinfo))    {
+        Serial.println("No time available (yet)");
+        return;
+    }
+    Serial.println(&timeinfo, "%A, %B %d, %Y %H:%M:%S");
+}
+
+// Callback function (get's called when time adjusts via NTP)
+void timeavailable(struct timeval *t)
+{
+  Serial.println("Got time adjustment from NTP!");
+  printLocalTime();
+}
+
+void editTime(struct tm *t, struct tm *rv, struct tm *rv2, unsigned long e_usec)    {
+
+    int   sec= (int)(e_usec / pow(10, 6)), 
+            min = sec * 60, 
+            hour = min * 60;
+    int day = hour * 24;
+    int mon = day /31;
+
+    rv->tm_mon =0;
+    rv->tm_mday =0;
+    rv->tm_hour =0;
+    rv->tm_min =0;
+    rv->tm_sec =0;
+
+    if(day >31) {
+        rv->tm_mon += mon;
+        rv->tm_mday += day%31;
+        rv->tm_hour += hour%24;
+        rv->tm_min +=min %60;
+        rv->tm_sec += sec%60;
+    }else if(hour > 24)   {
+        rv->tm_mday += day;
+        rv->tm_hour += hour%24;
+        rv->tm_min +=min %60;
+        rv->tm_sec += sec%60;
+    }else if (min > 60)  {
+        rv->tm_hour += hour;
+        rv->tm_min +=min %60;
+        rv->tm_sec += sec%60;
+    }else if (sec > 60) {
+        rv->tm_min +=min;
+        rv->tm_sec += sec%60;
+    }else{
+        rv->tm_sec += sec;
+    }
+
+    if(t->tm_mon + rv->tm_mon > 12)    {
+        rv2->tm_year = (t->tm_year + rv->tm_year);
+        rv2->tm_mon = (t->tm_mon + rv->tm_mon) % 12;
+        rv2->tm_mday = (t->tm_mday + rv->tm_mday) %30;
+        rv2->tm_hour = (t->tm_hour + rv->tm_hour) %24;
+        rv2->tm_min = (t->tm_min + rv->tm_min) %60;
+        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
+    } else if((t->tm_mday + rv->tm_mday) >30)   {
+        rv2->tm_mon = (t->tm_mon + rv->tm_mon);
+        rv2->tm_mday = (t->tm_mday + rv->tm_mday) %30;
+        rv2->tm_hour = (t->tm_hour + rv->tm_hour) %24;
+        rv2->tm_min = (t->tm_min + rv->tm_min) %60;
+        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
+    }else if((t->tm_hour + rv->tm_hour) > 24)   {
+        rv2->tm_mday = (t->tm_mday + rv->tm_mday);
+        rv2->tm_hour = (t->tm_hour + rv->tm_hour) %24;
+        rv2->tm_min = (t->tm_min + rv->tm_min) %60;
+        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
+    }else if((t->tm_min + rv->tm_min) > 60)    {
+        rv2->tm_hour = (t->tm_hour + rv->tm_hour);
+        rv2->tm_min = (t->tm_min + rv->tm_min) %60;
+        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
+    }else if((t-> tm_sec + rv->tm_sec)>60)  {
+        rv2->tm_min = (t->tm_min + rv->tm_min);
+        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec) %60;
+    }else{
+        rv2 ->tm_sec =  (t-> tm_sec + rv->tm_sec);
+    }
+
+
+}
+
 
 extern "C" void app_main() {
 
@@ -90,6 +193,9 @@ extern "C" void app_main() {
         nvs_flash_erase();
         nvs_flash_init();
     }
+
+    //Lol this is it????
+    setCpuFrequencyMhz(80);
 
     // //power management (80 MHz clock frequency - less power usage)
     // esp_pm_config_esp32_t pm_config = {
@@ -115,10 +221,24 @@ extern "C" void app_main() {
     tbdty.calibrate();
     sal.begin();
     sal.EnableDisableSingleReading(SAL, 1);
+    
+    //setting time again maybe?
+    //esp_netif_sntp_init(&config);
+    sntp_set_time_sync_notification_cb(timeavailable);
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
 
-    // esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
-    // esp_sntp_setservername(0, "pool.ntp.org");
-    // esp_sntp_init();
+    struct tm temperary, updatedTime;
+
+    //Setting time maybe??
+    struct timeval start;	/* starting time */
+	struct timeval end;	/* ending time */
+	unsigned long e_usec;	/* elapsed microseconds */
+
+    
+
+    printLocalTime();
+
+    gettimeofday(&start, 0);
 
 
     while(1)    {
@@ -175,10 +295,20 @@ extern "C" void app_main() {
 
         vTaskDelay(pdMS_TO_TICKS(5000)); // 5 seconds delay for next sensor read
 
+
+        gettimeofday(&end, 0);
+        /* now we can do the math. timeval has two elements: seconds and microseconds */
+	    e_usec = ((end.tv_sec * 1000000) + end.tv_usec) - ((start.tv_sec * 1000000) + start.tv_usec);
+        Serial.printf("elapsed time: %lu microseconds\n", e_usec);
+        
+        editTime(&timeinfo, &temperary, &updatedTime, e_usec);
+        Serial.println(&updatedTime, "%A, %B %d, %Y %H:%M:%S");
+
+      
         //Sleep Mode settings
-        esp_sleep_config_gpio_isolate();
-        esp_sleep_enable_timer_wakeup(SLEEP_TIME_US);
-        esp_light_sleep_start();
+        // esp_sleep_config_gpio_isolate();
+        // esp_sleep_enable_timer_wakeup(SLEEP_TIME_US);
+        // esp_light_sleep_start();
     }
 }
 
