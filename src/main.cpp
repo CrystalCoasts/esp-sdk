@@ -5,6 +5,8 @@
 #include "TempSensor.h"
 #include "TurbiditySensor.h"
 #include "SalinitySensor.h"
+#include "pHSensor.h"
+#include "DHT.h"
 
 //Internal ESP peripherals
 #include <esp_sleep.h>
@@ -25,6 +27,7 @@
 #include "sys/time.h"
 #include "esp_sntp.h"
 
+
 //New libraries for clock speed change - C:\Users\natha\.platformio\packages\framework-espidf\components\esp_pm\include
 #include "esp_pm.h"
 #include "esp_err.h"
@@ -32,6 +35,7 @@
 
 //RTC library - C:\Users\natha\.platformio\packages\framework-espidf\components\lwip\include\apps
 #include "esp_sntp.h"
+
 
 //Definitions and Constants
 #define WIFI_SSID "seawall"
@@ -42,6 +46,7 @@
 #define SDA_PIN 21
 #define SCL_PIN 22
 #define SLEEP_TIME_US 10000000 // 1 minute = 60000000 - multiply by any number for amount of minutes
+#define DEEP_SLEEP_TIME_US (60000000*60)*10
 
 //esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
 
@@ -52,13 +57,17 @@ const long gmtOffset_sec = -(3600 * 5);
 const int daylightOffset_sec = 3600;
 const char* time_zone = "CET-1CEST,M3.5.0,M10.5.0/3";
 
+//Mongo DB server
+const char *serverName = "mongodb+srv://lisettehawkins09:cxO0hBBXellzkuAX@cluster0-sensordatassam.sk9l59s.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0-sensorDatasSample";
+
 struct tm timeinfo;
 
 //Sleep status for night mode, regular mode, and within 5-10 minutes after supposed connection
 enum sleepStatus    {
     regular = 1,    
     withinInterval,
-    nightMode
+    nightMode,
+    connectedToDevice
 };
 
 
@@ -81,6 +90,7 @@ struct SensorData {
     bool oxygenLevelValid;
 };
 
+
 //External C Program
 extern "C"  {
     void app_main();
@@ -100,6 +110,8 @@ void editTime(struct tm *t, struct tm *rv, struct tm *rv2, unsigned long e_usec)
 // Status functions
 void blinkLED(int delayTime);
 void setLEDSolid(bool on);
+void sleepMode(struct tm t);
+void DHT_task(void *pvParameter);
 
 void printLocalTime()   {
     if(!getLocalTime(&timeinfo))    {
@@ -117,7 +129,7 @@ void timeavailable(struct timeval *t)
 }
 
 
-
+//DHT dht(0, DHT22, 6);
 
 extern "C" void app_main() {
 
@@ -128,33 +140,27 @@ extern "C" void app_main() {
         nvs_flash_init();
     }
 
-    //Lol this is it????
+    //Lol this is it???? - cpu clock frequency
     setCpuFrequencyMhz(80);
 
-    // //power management (80 MHz clock frequency - less power usage)
-    // esp_pm_config_esp32_t pm_config = {
-    //         .max_freq_mhz = 160,
-    //         .min_freq_mhz = 160,
-    // };
-    // ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
-    // // small delay might be necessary for the frequency setting to take effect — the idle task should have a chance to run
-    // vTaskDelay(pdMS_TO_TICKS(10));
-    // // now the frequency should be 80 MHz
-    // assert(esp_clk_cpu_freq() == 160 * 1000000);
-
+    //ADC 1 config
+    adc1_config_width(ADC_BIT_WIDTH);
 
     //Initializations
-    wifi_init();
+    //wifi_init();
     gpio_init();
     spiffs_init();
     Wire.begin(SDA_PIN, SCL_PIN);
+    phGloabl.begin();
     Serial.begin(115200);
+    //dht.begin();
 
     temp.begin();
     tbdty.begin();
     tbdty.calibrate();
     sal.begin();
     sal.EnableDisableSingleReading(SAL, 1);
+   
     
     //setting time again maybe?
     //esp_netif_sntp_init(&config);
@@ -173,20 +179,26 @@ extern "C" void app_main() {
         gettimeofday(&start, 0);
         //Sensor Data
         SensorData data = {};
-        data.temperatureValid = temp.readTemperature(FAHRENHEIT, &data.temperature);      
+        data.temperatureValid = temp.readTemperature(FAHRENHEIT, &data.temperature);   
+        data.pHValid = phGloabl.readpH(&data.pH);   
+        //interrupt_cntr_0 = interrupt_cntr;
+        data.humidityValid = temp.readHumidity(&data.humidity);
+        vTaskDelay( 3000 / portTICK_RATE_MS );
         data.salinityValid = sal.readSalinity(&data.salinity);
         data.turbidityValid = tbdty.readTurbidity(&data.turbidity);
-        data.humidityValid = temp.readHumidity(&data.humidity);
+        
 
         data.temperature = round(data.temperature * 1000.0) / 1000.0;
         data.salinity = round(data.salinity*1000)/1000;
         data.turbidity = round(data.turbidity * 1000) / 1000;
         data.humidity = round(data.humidity * 1000) / 1000;
+        data.pH = round(data.pH * 1000) / 1000;
+        //data.humidity = dht.readHumidity();
 
         // Default values for other sensors
         data.tds = 111.0;
         data.tdsValid = true;
-        data.pH = 7.0;
+        //data.pH = 7.0;
         data.pHValid = true;
         data.oxygenLevel = 36.0;
         data.oxygenLevelValid = true;
@@ -235,9 +247,9 @@ extern "C" void app_main() {
 
       
         //Sleep Mode settings
-        esp_sleep_config_gpio_isolate();
-        esp_sleep_enable_timer_wakeup(SLEEP_TIME_US);
-        esp_light_sleep_start();
+        // esp_sleep_config_gpio_isolate();
+        // esp_sleep_enable_timer_wakeup(SLEEP_TIME_US);
+        // esp_light_sleep_start();
     }
 }
 
@@ -477,4 +489,19 @@ void editTime(struct tm *t, struct tm *rv, struct tm *rv2, unsigned long e_usec)
     // }
 
 
+}
+
+void sleepMode(struct tm t) {
+
+    if(t.tm_hour > 20 && t.tm_hour < 6) {
+        esp_sleep_config_gpio_isolate();
+        esp_sleep_enable_timer_wakeup(DEEP_SLEEP_TIME_US);
+        esp_deep_sleep_start();
+    }else   {
+        esp_sleep_config_gpio_isolate();
+        esp_sleep_enable_timer_wakeup(DEEP_SLEEP_TIME_US);
+        esp_light_sleep_start();
+    }
+
+    
 }

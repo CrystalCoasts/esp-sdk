@@ -7,7 +7,7 @@ TempSensor& temp = TempSensor::Get();
  * Initializing the sensors instances for temperature and humidity
 **/
 TempSensor::TempSensor():
-    dht(DHTPIN,DHTTYPE),
+    dht(),
     oneWire(ONE_WIRE_BUS),
     sensors(&oneWire)
     {}
@@ -18,7 +18,7 @@ TempSensor& TempSensor::Get(){
 }
 
 void TempSensor::begin(){
-    dht.begin();
+    dht.setDHTgpio(DHTPIN);
     sensors.begin();
 }
 
@@ -27,8 +27,14 @@ bool TempSensor::readHumidity(float* humidity) {
         return false; // Invalid pointer
     }
 
+
     // Read humidity
-    float h = dht.readHumidity();
+    float h;
+    int errorCheck = dht.readDHT();
+    if(errorCheck == DHT_OK)
+        h = dht.getHumidity();
+    else
+        h=0;
 
     // Check if the reading was successful
     if (isnan(h)) {

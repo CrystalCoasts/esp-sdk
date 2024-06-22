@@ -12,7 +12,6 @@ void TurbiditySensor::begin() {
     EEPROM.get(EEPROM_VCLEAR_ADDRESS, vClear); // Retrieve the vClear from EEPROM
     
     //esp code
-    adc1_config_width(ADC_BIT_WIDTH);
     adc1_config_channel_atten(CHANNEL, ATTENUATION);
 
     //arduino code

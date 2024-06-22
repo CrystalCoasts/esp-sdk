@@ -1,12 +1,11 @@
 #ifndef TEMP_SENSOR_H
 #define TEMP_SENSOR_H
-#include <DHT.h>
+#include <DHT2.h>
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-
-
+#define DHTPIN (gpio_num_t) 0
 enum TEMP {CELSIUS,FAHRENHEIT};
 
 
@@ -14,8 +13,8 @@ class TempSensor
 {
 public:
     static constexpr uint8_t ONE_WIRE_BUS = 33;
-    static constexpr uint8_t DHTPIN = 14;
-    static constexpr uint8_t DHTTYPE = DHT11;
+    //static constexpr uint8_t DHTPIN = 5;
+    //static constexpr uint8_t DHTTYPE = DHT22;
     static constexpr uint8_t TEMP_INDEX = 0;
 
     static TempSensor& Get();
@@ -25,7 +24,7 @@ public:
 
 private:
     TempSensor();
-    DHT dht;
+    DHT2 dht;   //new dht code for esp
     OneWire oneWire;
     DallasTemperature sensors;
     
