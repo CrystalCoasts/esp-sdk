@@ -6,6 +6,8 @@
 #include "TurbiditySensor.h"
 #include "SalinitySensor.h"
 
+#include "ble.h"
+
 //Internal ESP peripherals
 #include <esp_sleep.h>
 #include "driver/gpio.h"

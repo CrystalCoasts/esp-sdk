@@ -1,113 +1,95 @@
 #include "ble.h"
 
-BLE* BLE::instance = nullptr;
+Ble* Ble::ble = nullptr;
+Ble& ble = Ble::Get();
 
-// Private constructor
-BLE::BLE() {
-    initServices();
+Ble::Ble() {status = BleStatus::OFF;}
+
+void Ble::init() {
+    // Initialize BLE stack
+
+    nvs_flash_init();
+    nimble_port_init();
+
+    ble_svc_gap_device_name_set("SEAWALL-0");
+    ble_svc_gap_init();
+    ble_svc_gatt_init();
+
+    //set callsback for ble events
+    ble_hs_cfg.sync_cb = Ble::on_sync;
+    nimble_port_freertos_init(Ble::host_task);
+
+    
+    status = BleStatus::ON; 
+
+}
+void host_task(void *param)
+{
+    nimble_port_run();
 }
 
-// Private destructor
-BLE::~BLE() {
-    // Cleanup if necessary
+void host_task(void *param)
+{
+    nimble_port_run();
 }
 
-// Get the single instance of the class
-BLE* BLE::getInstance() {
-    if (instance == nullptr) {
-        instance = new BLE();
-    }
-    return instance;
+void Ble::on_sync(void)
+{
+    // Automatically infer the best address type to use (public or random).
+    ble_hs_id_infer_auto(0, &Ble::ble_addr_type);
+
+    // Start advertising with the inferred address type.
+    Ble::Get().startAdvertising();
 }
 
-// Initialize Services
-void BLE::initServices() {
-    sensor_service.service_id.is_primary = true;
-    sensor_service.service_id.id.inst_id = 0x00;
-    sensor_service.service_id.id.uuid.len = ESP_UUID_LEN_16;
-    sensor_service.service_id.id.uuid.uuid.uuid16 = SENSOR_SERVICE_UUID;
+void Ble::startAdvertising(void)
+{
+    struct ble_hs_adv_fields fields;
+    memset(&fields, 0, sizeof(fields));
 
-    // Add characteristics for sensor service
-    sensor_service.characteristics.push_back({ {ESP_UUID_LEN_16, {.uuid16 = SENSOR_START_UUID}}, ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE, 0 });
-    sensor_service.characteristics.push_back({ {ESP_UUID_LEN_16, {.uuid16 = SENSOR_STOP_UUID}}, ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE, 0 });
-    sensor_service.characteristics.push_back({ {ESP_UUID_LEN_16, {.uuid16 = SENSOR_READ_UUID}}, ESP_GATT_CHAR_PROP_BIT_READ, 0 });
-    sensor_service.characteristics.push_back({ {ESP_UUID_LEN_16, {.uuid16 = SENSOR_CALIBRATE_UUID}}, ESP_GATT_CHAR_PROP_BIT_WRITE, 0 });
-    sensor_service.characteristics.push_back({ {ESP_UUID_LEN_16, {.uuid16 = SENSOR_ALERT_UUID}}, ESP_GATT_CHAR_PROP_BIT_NOTIFY, 0 });
+    fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_DISC_LTD;
+    fields.tx_pwr_lvl_is_present = 1;
+    fields.tx_pwr_lvl = BLE_HS_ADV_TX_PWR_LVL_AUTO;
 
-    system_service.service_id.is_primary = true;
-    system_service.service_id.id.inst_id = 0x00;
-    system_service.service_id.id.uuid.len = ESP_UUID_LEN_16;
-    system_service.service_id.id.uuid.uuid.uuid16 = SYSTEM_SERVICE_UUID;
+    fields.name = (uint8_t *)ble_svc_gap_device_name();
+    fields.name_len = strlen(ble_svc_gap_device_name());
+    fields.name_is_complete = 1;
 
-    // Add characteristics for system service
-    system_service.characteristics.push_back({ {ESP_UUID_LEN_16, {.uuid16 = SYSTEM_BATTERY_UUID}}, ESP_GATT_CHAR_PROP_BIT_READ, 0 });
-    system_service.characteristics.push_back({ {ESP_UUID_LEN_16, {.uuid16 = SYSTEM_UPDATE_UUID}}, ESP_GATT_CHAR_PROP_BIT_WRITE, 0 });
-    system_service.characteristics.push_back({ {ESP_UUID_LEN_16, {.uuid16 = SYSTEM_REFRESH_UUID}}, ESP_GATT_CHAR_PROP_BIT_WRITE, 0 });
-    system_service.characteristics.push_back({ {ESP_UUID_LEN_16, {.uuid16 = SYSTEM_RESET_UUID}}, ESP_GATT_CHAR_PROP_BIT_WRITE, 0 });
+    ble_gap_adv_set_fields(&fields);
+
+    struct ble_gap_adv_params adv_params;
+    memset(&adv_params, 0, sizeof(adv_params));
+    adv_params.conn_mode = BLE_GAP_CONN_MODE_UND;
+    adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN;
+
+    ble_gap_adv_start(ble_addr_type, NULL, BLE_HS_FOREVER, &adv_params, ble_app_gap_event, NULL);
 }
 
-// Add Characteristics to a Service
-void BLE::addCharacteristics(BLEService& service, esp_gatt_if_t gatts_if) {
-    for (auto& characteristic : service.characteristics) {
-        esp_ble_gatts_add_char(
-            service.service_handle,
-            &characteristic.uuid,
-            ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-            characteristic.properties,
-            NULL,
-            NULL
-        );
-    }
-}
 
-// Create Services
-void BLE::createServices(esp_gatt_if_t gatts_if) {
-    // Create sensor service
-    esp_ble_gatts_create_service(gatts_if, &sensor_service.service_id, SENSOR_SERVICE_HANDLERS);
-    addCharacteristics(sensor_service, gatts_if);
 
-    // Create system service
-    esp_ble_gatts_create_service(gatts_if, &system_service.service_id, SYSTEM_SERVICE_HANDLERS);
-    addCharacteristics(system_service, gatts_if);
-}
-
-// Start Advertising
-void BLE::startAdvertising() {
-    // Implement advertising start logic here
-}
-
-// Stop Advertising
-void BLE::stopAdvertising() {
-    // Implement advertising stop logic here
-}
-
-// Handle Start Characteristic
-void BLE::handleStartCharacteristic(SENSORS sensor) {
-    // Implement sensor start logic here
-}
-
-// Handle Data
-void BLE::handleData(uint8_t* data, size_t len) {
-    if (len == sizeof(SENSORS)) {
-        SENSORS sensor = static_cast<SENSORS>(*data);
-        handleStartCharacteristic(sensor);
-    }
-}
-
-// GATT Event Handler
-void BLE::gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t* param) {
-    switch (event) {
-        case ESP_GATTS_WRITE_EVT:
-            // Implement write event handling here
+int Ble::ble_app_gap_event(struct ble_gap_event *event, void *arg) {
+    switch (event->type) {
+        case BLE_GAP_EVENT_CONNECT:
+            if (event->connect.status == 0) { // Connection successful
+                ble_gap_conn_desc conn_desc;
+                ble_gap_conn_find(event->connect.conn_handle, &conn_desc);
+                // Initiate security request to start bonding
+                ble_gap_security_initiate(conn_desc.conn_handle);
+            }
             break;
-        case ESP_GATTS_READ_EVT:
-            // Implement read event handling here
+        
+        case BLE_GAP_EVENT_DISCONNECT:
             break;
-        case ESP_GATTS_SEND_SERVICE_CHANGE_EVT:
-            // Implement handling for the ESP_GATTS_SEND_SERVICE_CHANGE_EVT
+
+        case BLE_GAP_EVENT_ADV_COMPLETE:
             break;
-        default:
-            // Handle unhandled events
+
+        case BLE_GAP_EVENT_SUBSCRIBE:
+            break;
+
+       default :
             break;
     }
+    return 0; // Return 0 to indicate successful handling of the event
 }
+
