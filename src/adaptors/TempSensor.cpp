@@ -18,7 +18,7 @@ TempSensor& TempSensor::Get(){
 }
 
 void TempSensor::begin(){
-    dht.setDHTgpio(DHTPIN);
+    //dht.setDHTgpio(DHTPIN);
     sensors.begin();
 }
 

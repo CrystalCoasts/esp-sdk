@@ -26,6 +26,7 @@
 #include "cJSON.h"
 #include "sys/time.h"
 #include "esp_sntp.h"
+#include <rom/ets_sys.h>
 
 
 //New libraries for clock speed change - C:\Users\natha\.platformio\packages\framework-espidf\components\esp_pm\include
@@ -47,6 +48,7 @@
 #define SCL_PIN 22
 #define SLEEP_TIME_US 10000000 // 1 minute = 60000000 - multiply by any number for amount of minutes
 #define DEEP_SLEEP_TIME_US (60000000*60)*10
+#define DHT22_PIN (gpio_num_t) GPIO_NUM_0
 
 //esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
 
@@ -61,6 +63,8 @@ const char* time_zone = "CET-1CEST,M3.5.0,M10.5.0/3";
 const char *serverName = "mongodb+srv://lisettehawkins09:cxO0hBBXellzkuAX@cluster0-sensordatassam.sk9l59s.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0-sensorDatasSample";
 
 struct tm timeinfo;
+
+
 
 //Sleep status for night mode, regular mode, and within 5-10 minutes after supposed connection
 enum sleepStatus    {
@@ -128,8 +132,7 @@ void timeavailable(struct timeval *t)
   printLocalTime();
 }
 
-
-//DHT dht(0, DHT22, 6);
+DHT2 dht2 = DHT2();
 
 extern "C" void app_main() {
 
@@ -160,6 +163,8 @@ extern "C" void app_main() {
     tbdty.calibrate();
     sal.begin();
     sal.EnableDisableSingleReading(SAL, 1);
+
+    int error =0;
    
     
     //setting time again maybe?
@@ -173,6 +178,7 @@ extern "C" void app_main() {
     struct timeval start;	/* starting time */
 	struct timeval end;	/* ending time */
 	unsigned long e_usec;	/* elapsed microseconds */
+    dht2.setDHTgpio(GPIO_NUM_18);
 
     while(1)    {
         printLocalTime();
@@ -182,8 +188,13 @@ extern "C" void app_main() {
         data.temperatureValid = temp.readTemperature(FAHRENHEIT, &data.temperature);   
         data.pHValid = phGloabl.readpH(&data.pH);   
         //interrupt_cntr_0 = interrupt_cntr;
-        data.humidityValid = temp.readHumidity(&data.humidity);
-        vTaskDelay( 3000 / portTICK_RATE_MS );
+        //data.humidityValid = temp.readHumidity(&data.humidity);
+        //vTaskDelay( 3000 / portTICK_RATE_MS );
+        setCpuFrequencyMhz(240);
+        error = dht2.readDHT();
+        dht2.errorHandler(error);
+        data.humidity = dht2.getHumidity();
+        setCpuFrequencyMhz(80);
         data.salinityValid = sal.readSalinity(&data.salinity);
         data.turbidityValid = tbdty.readTurbidity(&data.turbidity);
         
@@ -191,7 +202,7 @@ extern "C" void app_main() {
         data.temperature = round(data.temperature * 1000.0) / 1000.0;
         data.salinity = round(data.salinity*1000)/1000;
         data.turbidity = round(data.turbidity * 1000) / 1000;
-        data.humidity = round(data.humidity * 1000) / 1000;
+        //data.humidity = round(data.humidity * 1000) / 1000;
         data.pH = round(data.pH * 1000) / 1000;
         //data.humidity = dht.readHumidity();
 

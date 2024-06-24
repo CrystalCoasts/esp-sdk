@@ -12,7 +12,7 @@
 
 #include "DHT2.h"
 
-static char TAG[] = "DHT";
+static char TAG[] = "DHT2";
 
 /*-----------------------------------------------------------------------
 ;
@@ -22,7 +22,7 @@ static char TAG[] = "DHT";
 
 DHT2::DHT2()
 {
-	DHTgpio = (gpio_num_t) 0;
+	DHTgpio = (gpio_num_t) 18;
 	humidity = 0.;
 	temperature = 0.;
 
