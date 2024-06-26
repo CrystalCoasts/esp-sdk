@@ -63,6 +63,8 @@ void SalinitySensor::EnableDisableSingleReading(uint8_t readOption, uint8_t data
         break;
     case TDS:
         command += "TDS," + String(data);
+        Serial.println("Salinty reading enabled");
+        tdsFlag = true;
         break;
     case SG:
         command += "SG," + String(data);
@@ -81,8 +83,7 @@ bool SalinitySensor::readSalinity(float* salinity) {
     ec.receive_cmd(ec_data, sizeof(ec_data));
     char salStr[32];
     if (!salFlag) {
-        EnableDisableSingleReading(SAL, 1);
-
+        EnableDisableSingleReading(TDS, 1);
     }
 
     ec.send_cmd("R");

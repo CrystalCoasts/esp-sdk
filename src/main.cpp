@@ -6,7 +6,8 @@
 #include "TurbiditySensor.h"
 #include "SalinitySensor.h"
 #include "pHSensor.h"
-#include "DHT.h"
+#include "DHT2.h"
+#include "DOSensor.h"
 
 //Internal ESP peripherals
 #include <esp_sleep.h>
@@ -27,6 +28,7 @@
 #include "sys/time.h"
 #include "esp_sntp.h"
 #include <rom/ets_sys.h>
+#include "driver/i2c.h"
 
 
 //New libraries for clock speed change - C:\Users\natha\.platformio\packages\framework-espidf\components\esp_pm\include
@@ -132,6 +134,35 @@ void timeavailable(struct timeval *t)
   printLocalTime();
 }
 
+
+
+void i2cBegin() {
+    
+ int i2c_master_port = 0;
+    i2c_config_t conf = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = GPIO_NUM_21,         // select GPIO specific to your project
+        .scl_io_num = GPIO_NUM_22,          // select GPIO specific to your project
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .clk_flags = 0,          /*!< Optional, you can use I2C_SCLK_SRC_FLAG_* flags to choose i2c source clock here. */
+    };
+
+
+
+    int i2c_slave_port1 = 0;
+    i2c_config_t conf_slave = {
+        .mode = I2C_MODE_SLAVE,
+        .sda_io_num = GPIO_NUM_21,          // select GPIO specific to your project
+        .scl_io_num = GPIO_NUM_22,          // select GPIO specific to your project
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,    
+    };
+
+
+}
+
+
 DHT2 dht2 = DHT2();
 
 extern "C" void app_main() {
@@ -150,19 +181,20 @@ extern "C" void app_main() {
     adc1_config_width(ADC_BIT_WIDTH);
 
     //Initializations
-    //wifi_init();
+    wifi_init();
     gpio_init();
     spiffs_init();
     Wire.begin(SDA_PIN, SCL_PIN);
     phGloabl.begin();
     Serial.begin(115200);
-    //dht.begin();
-
+    i2cBegin();
+    
     temp.begin();
     tbdty.begin();
     tbdty.calibrate();
     sal.begin();
     sal.EnableDisableSingleReading(SAL, 1);
+    DO.begin();
 
     int error =0;
    
@@ -197,22 +229,22 @@ extern "C" void app_main() {
         setCpuFrequencyMhz(80);
         data.salinityValid = sal.readSalinity(&data.salinity);
         data.turbidityValid = tbdty.readTurbidity(&data.turbidity);
+        data.oxygenLevelValid = DO.readDO(&data.oxygenLevel);
         
 
         data.temperature = round(data.temperature * 1000.0) / 1000.0;
         data.salinity = round(data.salinity*1000)/1000;
         data.turbidity = round(data.turbidity * 1000) / 1000;
-        //data.humidity = round(data.humidity * 1000) / 1000;
+        data.humidity = round(data.humidity * 1000) / 1000;
         data.pH = round(data.pH * 1000) / 1000;
-        //data.humidity = dht.readHumidity();
 
         // Default values for other sensors
         data.tds = 111.0;
         data.tdsValid = true;
         //data.pH = 7.0;
         data.pHValid = true;
-        data.oxygenLevel = 36.0;
-        data.oxygenLevelValid = true;
+        //data.oxygenLevel = 36.0;
+        //data.oxygenLevelValid = true;
 
         // Validate readings
         validateSensorReadings(&data);
@@ -359,7 +391,7 @@ void saveDataToJSONFile(const char* data) {
 void uploadData(const char* jsonData) {
     // Initialize all members of esp_http_client_config_t to avoid warnings
     esp_http_client_config_t config = {
-        .url = "http://example.com/upload",
+        .url = serverName,
         .host = NULL,
         .port = 0,
         .username = NULL,
