@@ -52,9 +52,15 @@ void DOSensor::begin()
 
 }
 
-bool DOSensor::readDO(float* DO) {
+bool DOSensor::readDO(float* DO, float salinity, float temp) {
 
-    char salStr[32];
+    //must send salinity and temp for proper reading
+    String command = "S," + String(salinity) + ",ppt";
+    ec2.send_cmd(command.c_str());
+    delay(300);
+    command = "T," + String(temp);
+    ec2.send_cmd(command.c_str());
+    delay(300);
 
     ec2.send_read_cmd();
     delay(600);

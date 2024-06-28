@@ -16,7 +16,7 @@ class DOSensor    {
         float sat_float;                 //float var used to hold the float value of the percent saturation.
         static DOSensor& get();
         void begin();
-        bool readDO(float* DO);
+        bool readDO(float* DO, float salinity, float temp);
 
 
     private:

@@ -118,6 +118,7 @@ void blinkLED(int delayTime);
 void setLEDSolid(bool on);
 void sleepMode(struct tm t);
 void DHT_task(void *pvParameter);
+void i2cBegin();
 
 void printLocalTime()   {
     if(!getLocalTime(&timeinfo))    {
@@ -134,33 +135,6 @@ void timeavailable(struct timeval *t)
   printLocalTime();
 }
 
-
-
-void i2cBegin() {
-    
- int i2c_master_port = 0;
-    i2c_config_t conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = GPIO_NUM_21,         // select GPIO specific to your project
-        .scl_io_num = GPIO_NUM_22,          // select GPIO specific to your project
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .clk_flags = 0,          /*!< Optional, you can use I2C_SCLK_SRC_FLAG_* flags to choose i2c source clock here. */
-    };
-
-
-
-    int i2c_slave_port1 = 0;
-    i2c_config_t conf_slave = {
-        .mode = I2C_MODE_SLAVE,
-        .sda_io_num = GPIO_NUM_21,          // select GPIO specific to your project
-        .scl_io_num = GPIO_NUM_22,          // select GPIO specific to your project
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,    
-    };
-
-
-}
 
 
 DHT2 dht2 = DHT2();
@@ -217,7 +191,7 @@ extern "C" void app_main() {
         gettimeofday(&start, 0);
         //Sensor Data
         SensorData data = {};
-        data.temperatureValid = temp.readTemperature(FAHRENHEIT, &data.temperature);   
+        data.temperatureValid = temp.readTemperature(CELSIUS, &data.temperature);   
         data.pHValid = phGloabl.readpH(&data.pH);   
         //interrupt_cntr_0 = interrupt_cntr;
         //data.humidityValid = temp.readHumidity(&data.humidity);
@@ -229,7 +203,7 @@ extern "C" void app_main() {
         setCpuFrequencyMhz(80);
         data.salinityValid = sal.readSalinity(&data.salinity);
         data.turbidityValid = tbdty.readTurbidity(&data.turbidity);
-        data.oxygenLevelValid = DO.readDO(&data.oxygenLevel);
+        data.oxygenLevelValid = DO.readDO(&data.oxygenLevel, data.salinity, data.temperature);
         
 
         data.temperature = round(data.temperature * 1000.0) / 1000.0;
@@ -547,4 +521,30 @@ void sleepMode(struct tm t) {
     }
 
     
+}
+
+void i2cBegin() {
+    
+ int i2c_master_port = 0;
+    i2c_config_t conf = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = GPIO_NUM_21,         // select GPIO specific to your project
+        .scl_io_num = GPIO_NUM_22,          // select GPIO specific to your project
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .clk_flags = 0,          /*!< Optional, you can use I2C_SCLK_SRC_FLAG_* flags to choose i2c source clock here. */
+    };
+
+
+
+    int i2c_slave_port1 = 0;
+    i2c_config_t conf_slave = {
+        .mode = I2C_MODE_SLAVE,
+        .sda_io_num = GPIO_NUM_21,          // select GPIO specific to your project
+        .scl_io_num = GPIO_NUM_22,          // select GPIO specific to your project
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,    
+    };
+
+
 }
